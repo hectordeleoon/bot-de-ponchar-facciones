@@ -1,0 +1,26 @@
+{
+  "name": "discord-bot-ponche-multidepartamento",
+  "version": "2.0.0",
+  "description": "Sistema de control de horas para múltiples departamentos y negocios en Discord",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "roleplay",
+    "fivem",
+    "ponche"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "20.x"
+  }
+}
