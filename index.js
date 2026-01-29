@@ -9,10 +9,15 @@ const {
   EmbedBuilder
 } = require("discord.js");
 const fs = require("fs");
+const express = require("express");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
+
+// Configuración del servidor webhook para FiveM
+const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "cambia_este_secreto";
 
 // CONFIGURACIÓN POLICÍA
 const POLICIA_CHANNEL_ID = process.env.POLICIA_CHANNEL_ID;
@@ -63,49 +68,33 @@ const NEGOCIOS = {
   }
 };
 
-const RANGOS = {
-  policia: [
-    { nombre: "Cadete", horas: 15 },
-    { nombre: "Cabo", horas: 20 },
-    { nombre: "Instructor Cabo", horas: 25 },
-    { nombre: "Sargento", horas: 30 },
-    { nombre: "Teniente", horas: 35 },
-    { nombre: "Capitán", horas: 40 },
-    { nombre: "Mayor", horas: 45 },
-    { nombre: "Coronel", horas: 50 },
-    { nombre: "General", horas: null },
-    { nombre: "Asuntos Internos", horas: null }
-  ],
-  ems: [
-    { nombre: "Rookie", horas: 15 },
-    { nombre: "Est. Médico", horas: 20 },
-    { nombre: "Enfermero/a", horas: 25 },
-    { nombre: "Residente", horas: 30 },
-    { nombre: "Asist. Doctor", horas: 35 },
-    { nombre: "Especialista", horas: 40 },
-    { nombre: "Supervisor", horas: 45 },
-    { nombre: "Sub Director", horas: 50 },
-    { nombre: "Director", horas: null }
-  ]
-};
-
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
 let data = {};
+let jugadoresData = {}; // Almacena los identificadores de FiveM
 const DATA_FILE = "data.json";
+const JUGADORES_FILE = "jugadores.json";
 let guardarPendiente = false;
 
+// ========================================
+// FUNCIONES DE CARGA Y GUARDADO
+// ========================================
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-      console.log("✅ Datos cargados correctamente");
+      console.log("✅ Datos de ponche cargados");
+    }
+    if (fs.existsSync(JUGADORES_FILE)) {
+      jugadoresData = JSON.parse(fs.readFileSync(JUGADORES_FILE, "utf8"));
+      console.log("✅ Datos de jugadores cargados");
     }
   } catch (error) {
     console.error("❌ Error cargando datos:", error);
     data = {};
+    jugadoresData = {};
   }
 }
 
@@ -117,6 +106,7 @@ setInterval(() => {
   if (guardarPendiente) {
     try {
       fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+      fs.writeFileSync(JUGADORES_FILE, JSON.stringify(jugadoresData, null, 2), "utf8");
       guardarPendiente = false;
     } catch (error) {
       console.error("❌ Error guardando datos:", error);
@@ -126,6 +116,47 @@ setInterval(() => {
 
 loadData();
 
+// ========================================
+// SERVIDOR WEBHOOK PARA FIVEM
+// ========================================
+const app = express();
+app.use(express.json());
+
+// Endpoint para registrar jugadores desde FiveM
+app.post('/register-player', (req, res) => {
+  const { secret, discordId, identifiers, playerName, playerId } = req.body;
+  
+  // Verificar secreto
+  if (secret !== WEBHOOK_SECRET) {
+    return res.status(403).json({ error: 'Secreto inválido' });
+  }
+
+  if (!discordId || !identifiers) {
+    return res.status(400).json({ error: 'Faltan datos' });
+  }
+
+  // Guardar información del jugador
+  jugadoresData[discordId] = {
+    playerId: playerId || 'N/A',
+    playerName: playerName || 'Desconocido',
+    identifiers: identifiers,
+    lastUpdate: new Date().toISOString()
+  };
+
+  save();
+  
+  console.log(`✅ Jugador registrado: ${playerName} (${discordId})`);
+  res.json({ success: true, message: 'Jugador registrado correctamente' });
+});
+
+// Iniciar servidor webhook
+app.listen(WEBHOOK_PORT, () => {
+  console.log(`🌐 Servidor webhook escuchando en puerto ${WEBHOOK_PORT}`);
+});
+
+// ========================================
+// COMANDOS SLASH
+// ========================================
 const commands = [
   new SlashCommandBuilder()
     .setName("entrar")
@@ -156,28 +187,32 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 async function registrarComandos() {
   try {
+    console.log("🔄 Registrando comandos slash...");
     await rest.put(
       Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: commands }
     );
-    console.log("✅ Comandos registrados");
+    console.log("✅ Comandos slash registrados exitosamente");
   } catch (error) {
     console.error("❌ Error registrando comandos:", error);
   }
 }
 
+// ========================================
+// FUNCIONES AUXILIARES
+// ========================================
 function detectarDepartamento(interaction) {
   const channelId = interaction.channelId;
   const memberRoles = interaction.member.roles.cache;
   
   // Verificar Policía
   if (channelId === POLICIA_CHANNEL_ID && memberRoles.has(POLICIA_ROLE_ID)) {
-    return { tipo: "policia", nombre: "POLICÍA", color: 0x0066cc };
+    return { tipo: "policia", nombre: "POLICÍA", color: 0x0066cc, logChannelId: POLICIA_LOG_CHANNEL_ID };
   }
   
   // Verificar EMS
   if (channelId === EMS_CHANNEL_ID && memberRoles.has(EMS_ROLE_ID)) {
-    return { tipo: "ems", nombre: "EMS", color: 0xff0000 };
+    return { tipo: "ems", nombre: "EMS", color: 0xff0000, logChannelId: EMS_LOG_CHANNEL_ID };
   }
   
   // Verificar Negocios
@@ -185,7 +220,13 @@ function detectarDepartamento(interaction) {
     if (channelId === negocio.channelId) {
       const tieneRol = negocio.roleIds.some(roleId => memberRoles.has(roleId));
       if (tieneRol) {
-        return { tipo: key, nombre: negocio.nombre, color: 0x00ff00, emoji: negocio.emoji };
+        return { 
+          tipo: key, 
+          nombre: negocio.nombre, 
+          color: 0x00ff00, 
+          emoji: negocio.emoji,
+          logChannelId: negocio.logChannelId
+        };
       }
     }
   }
@@ -203,13 +244,8 @@ function inicializarUsuario(id, departamento) {
       daily: 0,
       weekly: 0,
       monthly: 0,
-      rango: departamento === "policia" ? "Cadete" : (departamento === "ems" ? "Rookie" : "Empleado"),
-      penalizaciones: 0,
-      strikes: 0,
-      suspendidoHasta: null,
-      tops: 0,
       entrada: null,
-      ultimaEvaluacion: Date.now()
+      entradas: []
     };
   }
   return data[key];
@@ -221,10 +257,22 @@ function formatearTiempo(ms) {
   return `${h}h ${m}m`;
 }
 
-client.once("clientReady", async () => {
+function formatearFecha(timestamp) {
+  const fecha = new Date(timestamp);
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const año = fecha.getFullYear();
+  const hora = String(fecha.getHours()).padStart(2, '0');
+  const minutos = String(fecha.getMinutes()).padStart(2, '0');
+  return `${dia}/${mes}/${año} - ${hora}:${minutos}`;
+}
+
+// ========================================
+// EVENTOS DEL BOT
+// ========================================
+client.once("ready", async () => {
   console.log(`🤖 Bot conectado como ${client.user.tag}`);
   await registrarComandos();
-  iniciarTareasProgramadas();
 });
 
 client.on("interactionCreate", async interaction => {
@@ -246,15 +294,10 @@ client.on("interactionCreate", async interaction => {
   const nombreDep = departamento.nombre;
   const colorDep = departamento.color;
 
+  // ========================================
+  // COMANDO /entrar
+  // ========================================
   if (interaction.commandName === "entrar") {
-    if (usuario.suspendidoHasta && now < usuario.suspendidoHasta) {
-      const fechaFin = new Date(usuario.suspendidoHasta).toLocaleString("es-ES");
-      return interaction.reply({
-        content: `⛔ Estás suspendido hasta el **${fechaFin}**`,
-        ephemeral: true
-      });
-    }
-
     if (usuario.entrada) {
       const tiempoActual = now - usuario.entrada;
       return interaction.reply({
@@ -270,12 +313,15 @@ client.on("interactionCreate", async interaction => {
       .setColor(0x00ff00)
       .setTitle(`🟢 ENTRADA REGISTRADA - ${nombreDep}`)
       .setDescription(`**${interaction.user.username}** entró a trabajar`)
-      .addFields({ name: "⏰ Hora", value: new Date(now).toLocaleString("es-ES") })
+      .addFields({ name: "⏰ Hora", value: formatearFecha(now) })
       .setTimestamp();
 
     return interaction.reply({ embeds: [embed] });
   }
 
+  // ========================================
+  // COMANDO /salir
+  // ========================================
   if (interaction.commandName === "salir") {
     if (!usuario.entrada) {
       return interaction.reply({
@@ -284,33 +330,74 @@ client.on("interactionCreate", async interaction => {
       });
     }
 
-    const tiempo = now - usuario.entrada;
+    const horaEntrada = usuario.entrada;
+    const horaSalida = now;
+    const tiempo = horaSalida - horaEntrada;
+    const tiempoMinutos = Math.floor(tiempo / 60000);
     const tiempoFormateado = formatearTiempo(tiempo);
 
+    // Actualizar estadísticas
     usuario.total += tiempo;
     usuario.daily += tiempo;
     usuario.weekly += tiempo;
     usuario.monthly += tiempo;
+    
+    // Guardar en historial
+    usuario.entradas.push({
+      entrada: horaEntrada,
+      salida: horaSalida,
+      duracion: tiempo
+    });
+    
     delete usuario.entrada;
     save();
 
-    // Obtener canal de logs
-    let logChannelId;
-    if (departamento.tipo === "policia") {
-      logChannelId = POLICIA_LOG_CHANNEL_ID;
-    } else if (departamento.tipo === "ems") {
-      logChannelId = EMS_LOG_CHANNEL_ID;
-    } else {
-      logChannelId = NEGOCIOS[departamento.tipo].logChannelId;
-    }
-    
+    // Obtener información del jugador de FiveM
+    const jugadorInfo = jugadoresData[id] || null;
+
+    // Enviar al canal de logs
     try {
-      const logChannel = await client.channels.fetch(logChannelId);
-      logChannel.send(`🧾 **[${nombreDep}]** ${interaction.user.username} trabajó **${tiempoFormateado}**`);
+      const logChannel = await client.channels.fetch(departamento.logChannelId);
+      
+      // Mensaje simple primero
+      await logChannel.send(`🧾 **[${nombreDep}]** ${interaction.user.username} trabajó **${tiempoFormateado}**`);
+      
+      // Embed detallado con identificadores
+      const logEmbed = new EmbedBuilder()
+        .setColor(0xff6b6b)
+        .setTitle(`📋 Salida del servicio`)
+        .setDescription(`El jugador ha finalizado el servicio.`)
+        .addFields(
+          { name: "⏰ Hora de entrada", value: `\`${formatearFecha(horaEntrada)}\``, inline: true },
+          { name: "⏰ Hora de salida", value: `\`${formatearFecha(horaSalida)}\``, inline: true },
+          { name: "⏱️ Total", value: `\`${tiempoMinutos}\` minutos`, inline: true }
+        );
+
+      // Agregar identificadores si están disponibles
+      if (jugadorInfo && jugadorInfo.identifiers) {
+        const ids = jugadorInfo.identifiers;
+        let identificadoresTexto = `**ID:** ${jugadorInfo.playerId || 'N/A'}\n`;
+        identificadoresTexto += `**Nombre:** ${jugadorInfo.playerName || 'N/A'}\n`;
+        
+        if (ids.license) identificadoresTexto += `**license:** ${ids.license}\n`;
+        if (ids.xbl) identificadoresTexto += `**xbl:** ${ids.xbl}\n`;
+        if (ids.live) identificadoresTexto += `**live:** ${ids.live}\n`;
+        if (ids.discord) identificadoresTexto += `**discord:** ${ids.discord}\n`;
+        
+        logEmbed.addFields({ 
+          name: "🆔 IDENTIFICADORES", 
+          value: identificadoresTexto,
+          inline: false 
+        });
+      }
+
+      await logChannel.send({ embeds: [logEmbed] });
+      
     } catch (error) {
       console.error("❌ Error enviando log:", error);
     }
 
+    // Responder al usuario
     const embed = new EmbedBuilder()
       .setColor(0xff0000)
       .setTitle(`🔴 SALIDA REGISTRADA - ${nombreDep}`)
@@ -323,14 +410,14 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ embeds: [embed] });
   }
 
+  // ========================================
+  // COMANDO /estadisticas
+  // ========================================
   if (interaction.commandName === "estadisticas") {
     const embed = new EmbedBuilder()
       .setColor(colorDep)
       .setTitle(`📊 Estadísticas de ${interaction.user.username} - ${nombreDep}`)
       .addFields(
-        { name: "🎖️ Rango", value: usuario.rango, inline: true },
-        { name: "⚠️ Strikes", value: `${usuario.strikes}/3`, inline: true },
-        { name: "🏆 Top conseguidos", value: `${usuario.tops}`, inline: true },
         { name: "📅 Hoy", value: formatearTiempo(usuario.daily), inline: true },
         { name: "📅 Esta semana", value: formatearTiempo(usuario.weekly), inline: true },
         { name: "📅 Este mes", value: formatearTiempo(usuario.monthly), inline: true },
@@ -341,6 +428,9 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
+  // ========================================
+  // COMANDO /ranking
+  // ========================================
   if (interaction.commandName === "ranking") {
     const periodo = interaction.options.getString("periodo");
     
@@ -374,7 +464,7 @@ client.on("interactionCreate", async interaction => {
       const emoji = i < 3 ? medallas[i] : `**${i + 1}.**`;
       embed.addFields({
         name: `${emoji} ${i < 3 ? `${i + 1}° Lugar` : ''}`,
-        value: `<@${usuario.userId}> — **${formatearTiempo(usuario[periodo])}** | ${usuario.rango}`,
+        value: `<@${usuario.userId}> — **${formatearTiempo(usuario[periodo])}**`,
         inline: false
       });
     });
@@ -383,91 +473,14 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
-let ultimaVerificacionHora = -1;
-let ultimaVerificacionDia = -1;
-
-function iniciarTareasProgramadas() {
-  setInterval(verificarSalidasAutomaticas, 60000);
-  setInterval(verificarTareasHorarias, 60000);
-}
-
-async function verificarSalidasAutomaticas() {
-  const now = Date.now();
-  const LIMITE_24H = 86400000;
-
-  for (const key in data) {
-    const usuario = data[key];
-    
-    if (usuario.entrada && now - usuario.entrada >= LIMITE_24H) {
-      usuario.total += LIMITE_24H;
-      usuario.weekly += LIMITE_24H;
-      usuario.monthly += LIMITE_24H;
-      usuario.strikes += 1;
-      delete usuario.entrada;
-
-      if (usuario.strikes >= 3) {
-        usuario.suspendidoHasta = now + 48 * 60 * 60 * 1000;
-        usuario.strikes = 0;
-      }
-
-      save();
-    }
-  }
-}
-
-async function verificarTareasHorarias() {
-  const ahora = new Date();
-  const horaActual = ahora.getHours();
-  const diaActual = ahora.getDate();
-
-  if (ultimaVerificacionHora === horaActual && ultimaVerificacionDia === diaActual) {
-    return;
-  }
-
-  ultimaVerificacionHora = horaActual;
-  ultimaVerificacionDia = diaActual;
-
-  if (horaActual === 23) {
-    resetearDailyStats();
-  }
-
-  if (ahora.getDay() === 0 && horaActual === 23) {
-    resetearWeeklyStats();
-  }
-
-  if (diaActual === 1 && horaActual === 0) {
-    resetearMonthlyStats();
-  }
-}
-
-function resetearDailyStats() {
-  for (const key in data) {
-    data[key].daily = 0;
-  }
-  save();
-}
-
-function resetearWeeklyStats() {
-  for (const key in data) {
-    data[key].weekly = 0;
-    data[key].penalizaciones = 0;
-  }
-  save();
-}
-
-function resetearMonthlyStats() {
-  for (const key in data) {
-    data[key].monthly = 0;
-    data[key].strikes = 0;
-    data[key].tops = 0;
-  }
-  save();
-}
-
+// ========================================
+// MANEJO DE ERRORES
+// ========================================
 process.on('SIGINT', () => {
   console.log('⏸️ Guardando datos antes de cerrar...');
   if (guardarPendiente) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
+    fs.writeFileSync(JUGADORES_FILE, JSON.stringify(jugadoresData, null, 2), "utf8");
   }
   process.exit(0);
 });
@@ -480,6 +493,9 @@ process.on("unhandledRejection", error => {
   console.error("❌ Promesa rechazada:", error);
 });
 
+// ========================================
+// INICIAR BOT
+// ========================================
 client.login(TOKEN).catch(error => {
   console.error("❌ Error al iniciar sesión:", error);
   process.exit(1);
