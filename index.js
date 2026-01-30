@@ -1,13 +1,12 @@
 require('dotenv').config();
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-  GatewayIntentBits,
-  SlashCommandBuilder,
-  REST,
-  Routes,
-  EmbedBuilder
+const { 
+  Client, 
+  GatewayIntentBits, 
+  SlashCommandBuilder, 
+  REST, 
+  Routes, 
+  EmbedBuilder 
 } = require("discord.js");
 
 const fs = require("fs");
@@ -15,6 +14,11 @@ const express = require("express");
 
 const app = express();
 app.use(express.json());
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
 
 // ================= WEB =================
 
