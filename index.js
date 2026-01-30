@@ -347,11 +347,16 @@ client.on("interactionCreate", async interaction => {
     usuario.monthly += tiempo;
     
     // Guardar en historial
-    usuario.entradas.push({
-      entrada: horaEntrada,
-      salida: horaSalida,
-      duracion: tiempo
-    });
+  usuario.entradas.push({
+  entrada: horaEntrada,
+  salida: horaSalida,
+  duracion: tiempo
+});
+
+// 🧹 Limitar historial para optimizar rendimiento
+if (usuario.entradas.length > 100) {
+  usuario.entradas.shift(); // borra la más vieja
+}
     
     delete usuario.entrada;
     save();
