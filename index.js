@@ -122,6 +122,10 @@ loadData();
 const app = express();
 app.use(express.json());
 
+app.get('/', (req, res) => {
+  res.status(200).send('✅ Bot activo 24/7');
+});
+
 // Endpoint para registrar jugadores desde FiveM
 app.post('/register-player', (req, res) => {
   const { secret, discordId, identifiers, playerName, playerId } = req.body;
