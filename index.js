@@ -10,6 +10,51 @@ const {
 } = require("discord.js");
 const fs = require("fs");
 const express = require("express");
+app.get('/', (req, res) => {
+  res.send('✅ Bot activo 24/7');
+});
+
+app.get('/dashboard', (req, res) => {
+
+  let rows = "";
+
+  Object.values(data).forEach(u => {
+    const horas = Math.floor(u.total / 3600000);
+    const minutos = Math.floor((u.total % 3600000) / 60000);
+
+    rows += `
+      <tr>
+        <td>${u.userId}</td>
+        <td>${u.departamento}</td>
+        <td>${horas}h ${minutos}m</td>
+      </tr>
+    `;
+  });
+
+  res.send(`
+  <html>
+  <head>
+    <style>
+      body { background:#0f172a; color:white; font-family:Arial; padding:20px; }
+      table { width:100%; border-collapse:collapse; background:#1e293b; }
+      th,td { padding:12px; border-bottom:1px solid #334155; text-align:center; }
+      th { background:#2563eb; }
+    </style>
+  </head>
+  <body>
+    <h1>📊 Dashboard de Horas</h1>
+    <table>
+      <tr>
+        <th>Usuario</th>
+        <th>Departamento</th>
+        <th>Total</th>
+      </tr>
+      ${rows}
+    </table>
+  </body>
+  </html>
+  `);
+});
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
