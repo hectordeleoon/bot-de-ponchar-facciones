@@ -8,8 +8,17 @@ const {
   Routes,
   EmbedBuilder
 } = require("discord.js");
+
 const fs = require("fs");
 const express = require("express");
+
+const app = express();
+app.use(express.json());
+
+// ================= WEB =================
+
+let data = {}; // aquí va tu data de horas (puedes conectar luego con tu JSON)
+
 app.get('/', (req, res) => {
   res.send('✅ Bot activo 24/7');
 });
@@ -32,31 +41,51 @@ app.get('/dashboard', (req, res) => {
   });
 
   res.send(`
-  <html>
-  <head>
-    <style>
-      body { background:#0f172a; color:white; font-family:Arial; padding:20px; }
-      table { width:100%; border-collapse:collapse; background:#1e293b; }
-      th,td { padding:12px; border-bottom:1px solid #334155; text-align:center; }
-      th { background:#2563eb; }
-    </style>
-  </head>
-  <body>
-    <h1>📊 Dashboard de Horas</h1>
-    <table>
-      <tr>
-        <th>Usuario</th>
-        <th>Departamento</th>
-        <th>Total</th>
-      </tr>
-      ${rows}
-    </table>
-  </body>
-  </html>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Dashboard</title>
+<style>
+body { background:#0f172a; color:white; font-family:Arial; }
+h1 { text-align:center; }
+table { width:80%; margin:auto; border-collapse:collapse; }
+th,td { padding:12px; border:1px solid #334155; text-align:center; }
+th { background:#1e293b; }
+tr:nth-child(even){ background:#1e293b; }
+</style>
+</head>
+<body>
+<h1>📊 Dashboard de Horas</h1>
+<table>
+<tr>
+<th>Usuario</th>
+<th>Facción</th>
+<th>Tiempo trabajado</th>
+</tr>
+${rows}
+</table>
+</body>
+</html>
   `);
 });
 
-const TOKEN = process.env.TOKEN;
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("🌐 Web activa en puerto " + PORT);
+});
+
+// ================= DISCORD BOT =================
+
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
+client.once("ready", () => {
+  console.log(`🤖 Bot conectado como ${client.user.tag}`);
+});
+
+client.login(process.env.TOKEN);
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
