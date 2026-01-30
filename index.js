@@ -1,96 +1,12 @@
 require('dotenv').config();
-
-const { 
-  Client, 
-  GatewayIntentBits, 
-  SlashCommandBuilder, 
-  REST, 
-  Routes, 
-  EmbedBuilder 
-} = require("discord.js");
-
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, EmbedBuilder } = require("discord.js");
 const fs = require("fs");
 const express = require("express");
 
-const app = express();
-app.use(express.json());
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
-
-// ================= WEB =================
-
-let data = {}; // aquí va tu data de horas (puedes conectar luego con tu JSON)
-
-app.get('/', (req, res) => {
-  res.send('✅ Bot activo 24/7');
-});
-
-app.get('/dashboard', (req, res) => {
-
-  let rows = "";
-
-  Object.values(data).forEach(u => {
-    const horas = Math.floor(u.total / 3600000);
-    const minutos = Math.floor((u.total % 3600000) / 60000);
-
-    rows += `
-      <tr>
-        <td>${u.userId}</td>
-        <td>${u.departamento}</td>
-        <td>${horas}h ${minutos}m</td>
-      </tr>
-    `;
-  });
-
-  res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-<title>Dashboard</title>
-<style>
-body { background:#0f172a; color:white; font-family:Arial; }
-h1 { text-align:center; }
-table { width:80%; margin:auto; border-collapse:collapse; }
-th,td { padding:12px; border:1px solid #334155; text-align:center; }
-th { background:#1e293b; }
-tr:nth-child(even){ background:#1e293b; }
-</style>
-</head>
-<body>
-<h1>📊 Dashboard de Horas</h1>
-<table>
-<tr>
-<th>Usuario</th>
-<th>Facción</th>
-<th>Tiempo trabajado</th>
-</tr>
-${rows}
-</table>
-</body>
-</html>
-  `);
-});
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("🌐 Web activa en puerto " + PORT);
-});
-
-// ================= DISCORD BOT =================
-
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
-
-client.once("ready", () => {
-  console.log(`🤖 Bot conectado como ${client.user.tag}`);
-});
-
-client.login(process.env.TOKEN);
+// ======================================== 
+// CONFIGURACIÓN
+// ======================================== 
+const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
@@ -147,8 +63,14 @@ const NEGOCIOS = {
   }
 };
 
+// ======================================== 
+// INICIALIZAR DISCORD CLIENT
+// ======================================== 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers
+  ]
 });
 
 let data = {};
@@ -157,9 +79,9 @@ const DATA_FILE = "data.json";
 const JUGADORES_FILE = "jugadores.json";
 let guardarPendiente = false;
 
-// ========================================
+// ======================================== 
 // FUNCIONES DE CARGA Y GUARDADO
-// ========================================
+// ======================================== 
 function loadData() {
   try {
     if (fs.existsSync(DATA_FILE)) {
@@ -195,9 +117,9 @@ setInterval(() => {
 
 loadData();
 
-// ========================================
-// SERVIDOR WEBHOOK PARA FIVEM
-// ========================================
+// ======================================== 
+// SERVIDOR WEB Y WEBHOOK PARA FIVEM
+// ======================================== 
 const app = express();
 app.use(express.json());
 
@@ -205,10 +127,51 @@ app.get('/', (req, res) => {
   res.status(200).send('✅ Bot activo 24/7');
 });
 
+app.get('/dashboard', (req, res) => {
+  let rows = "";
+  Object.values(data).forEach(u => {
+    const horas = Math.floor(u.total / 3600000);
+    const minutos = Math.floor((u.total % 3600000) / 60000);
+    rows += `<tr>
+      <td>${u.userId}</td>
+      <td>${u.departamento}</td>
+      <td>${horas}h ${minutos}m</td>
+    </tr>`;
+  });
+
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Dashboard</title>
+      <style>
+        body { background:#0f172a; color:white; font-family:Arial; }
+        h1 { text-align:center; }
+        table { width:80%; margin:auto; border-collapse:collapse; }
+        th,td { padding:12px; border:1px solid #334155; text-align:center; }
+        th { background:#1e293b; }
+        tr:nth-child(even){ background:#1e293b; }
+      </style>
+    </head>
+    <body>
+      <h1>📊 Dashboard de Horas</h1>
+      <table>
+        <tr>
+          <th>Usuario</th>
+          <th>Facción</th>
+          <th>Tiempo trabajado</th>
+        </tr>
+        ${rows}
+      </table>
+    </body>
+    </html>
+  `);
+});
+
 // Endpoint para registrar jugadores desde FiveM
 app.post('/register-player', (req, res) => {
   const { secret, discordId, identifiers, playerName, playerId } = req.body;
-  
+
   // Verificar secreto
   if (secret !== WEBHOOK_SECRET) {
     return res.status(403).json({ error: 'Secreto inválido' });
@@ -227,19 +190,18 @@ app.post('/register-player', (req, res) => {
   };
 
   save();
-  
   console.log(`✅ Jugador registrado: ${playerName} (${discordId})`);
   res.json({ success: true, message: 'Jugador registrado correctamente' });
 });
 
-// Iniciar servidor webhook
+// Iniciar servidor web y webhook
 app.listen(WEBHOOK_PORT, () => {
-  console.log(`🌐 Servidor webhook escuchando en puerto ${WEBHOOK_PORT}`);
+  console.log(`🌐 Servidor web y webhook escuchando en puerto ${WEBHOOK_PORT}`);
 });
 
-// ========================================
+// ======================================== 
 // COMANDOS SLASH
-// ========================================
+// ======================================== 
 const commands = [
   new SlashCommandBuilder()
     .setName("entrar")
@@ -281,39 +243,49 @@ async function registrarComandos() {
   }
 }
 
-// ========================================
+// ======================================== 
 // FUNCIONES AUXILIARES
-// ========================================
+// ======================================== 
 function detectarDepartamento(interaction) {
   const channelId = interaction.channelId;
   const memberRoles = interaction.member.roles.cache;
-  
+
   // Verificar Policía
   if (channelId === POLICIA_CHANNEL_ID && memberRoles.has(POLICIA_ROLE_ID)) {
-    return { tipo: "policia", nombre: "POLICÍA", color: 0x0066cc, logChannelId: POLICIA_LOG_CHANNEL_ID };
+    return {
+      tipo: "policia",
+      nombre: "POLICÍA",
+      color: 0x0066cc,
+      logChannelId: POLICIA_LOG_CHANNEL_ID
+    };
   }
-  
+
   // Verificar EMS
   if (channelId === EMS_CHANNEL_ID && memberRoles.has(EMS_ROLE_ID)) {
-    return { tipo: "ems", nombre: "EMS", color: 0xff0000, logChannelId: EMS_LOG_CHANNEL_ID };
+    return {
+      tipo: "ems",
+      nombre: "EMS",
+      color: 0xff0000,
+      logChannelId: EMS_LOG_CHANNEL_ID
+    };
   }
-  
+
   // Verificar Negocios
   for (const [key, negocio] of Object.entries(NEGOCIOS)) {
     if (channelId === negocio.channelId) {
       const tieneRol = negocio.roleIds.some(roleId => memberRoles.has(roleId));
       if (tieneRol) {
-        return { 
-          tipo: key, 
-          nombre: negocio.nombre, 
-          color: 0x00ff00, 
+        return {
+          tipo: key,
+          nombre: negocio.nombre,
+          color: 0x00ff00,
           emoji: negocio.emoji,
           logChannelId: negocio.logChannelId
         };
       }
     }
   }
-  
+
   return null;
 }
 
@@ -350,9 +322,9 @@ function formatearFecha(timestamp) {
   return `${dia}/${mes}/${año} - ${hora}:${minutos}`;
 }
 
-// ========================================
+// ======================================== 
 // EVENTOS DEL BOT
-// ========================================
+// ======================================== 
 client.once("ready", async () => {
   console.log(`🤖 Bot conectado como ${client.user.tag}`);
   await registrarComandos();
@@ -362,7 +334,6 @@ client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   const departamento = detectarDepartamento(interaction);
-  
   if (!departamento) {
     return interaction.reply({
       content: "❌ Debes usar este comando en el canal correcto con el rol adecuado",
@@ -373,13 +344,12 @@ client.on("interactionCreate", async interaction => {
   const id = interaction.user.id;
   const now = Date.now();
   const usuario = inicializarUsuario(id, departamento.tipo);
-  
   const nombreDep = departamento.nombre;
   const colorDep = departamento.color;
 
-  // ========================================
+  // ======================================== 
   // COMANDO /entrar
-  // ========================================
+  // ======================================== 
   if (interaction.commandName === "entrar") {
     if (usuario.entrada) {
       const tiempoActual = now - usuario.entrada;
@@ -402,9 +372,9 @@ client.on("interactionCreate", async interaction => {
     return interaction.reply({ embeds: [embed] });
   }
 
-  // ========================================
+  // ======================================== 
   // COMANDO /salir
-  // ========================================
+  // ======================================== 
   if (interaction.commandName === "salir") {
     if (!usuario.entrada) {
       return interaction.reply({
@@ -424,19 +394,19 @@ client.on("interactionCreate", async interaction => {
     usuario.daily += tiempo;
     usuario.weekly += tiempo;
     usuario.monthly += tiempo;
-    
-    // Guardar en historial
-  usuario.entradas.push({
-  entrada: horaEntrada,
-  salida: horaSalida,
-  duracion: tiempo
-});
 
-// 🧹 Limitar historial para optimizar rendimiento
-if (usuario.entradas.length > 100) {
-  usuario.entradas.shift(); // borra la más vieja
-}
-    
+    // Guardar en historial
+    usuario.entradas.push({
+      entrada: horaEntrada,
+      salida: horaSalida,
+      duracion: tiempo
+    });
+
+    // 🧹 Limitar historial para optimizar rendimiento
+    if (usuario.entradas.length > 100) {
+      usuario.entradas.shift(); // borra la más vieja
+    }
+
     delete usuario.entrada;
     save();
 
@@ -446,10 +416,10 @@ if (usuario.entradas.length > 100) {
     // Enviar al canal de logs
     try {
       const logChannel = await client.channels.fetch(departamento.logChannelId);
-      
+
       // Mensaje simple primero
       await logChannel.send(`🧾 **[${nombreDep}]** ${interaction.user.username} trabajó **${tiempoFormateado}**`);
-      
+
       // Embed detallado con identificadores
       const logEmbed = new EmbedBuilder()
         .setColor(0xff6b6b)
@@ -466,21 +436,15 @@ if (usuario.entradas.length > 100) {
         const ids = jugadorInfo.identifiers;
         let identificadoresTexto = `**ID:** ${jugadorInfo.playerId || 'N/A'}\n`;
         identificadoresTexto += `**Nombre:** ${jugadorInfo.playerName || 'N/A'}\n`;
-        
         if (ids.license) identificadoresTexto += `**license:** ${ids.license}\n`;
         if (ids.xbl) identificadoresTexto += `**xbl:** ${ids.xbl}\n`;
         if (ids.live) identificadoresTexto += `**live:** ${ids.live}\n`;
         if (ids.discord) identificadoresTexto += `**discord:** ${ids.discord}\n`;
-        
-        logEmbed.addFields({ 
-          name: "🆔 IDENTIFICADORES", 
-          value: identificadoresTexto,
-          inline: false 
-        });
+
+        logEmbed.addFields({ name: "🆔 IDENTIFICADORES", value: identificadoresTexto, inline: false });
       }
 
       await logChannel.send({ embeds: [logEmbed] });
-      
     } catch (error) {
       console.error("❌ Error enviando log:", error);
     }
@@ -498,9 +462,9 @@ if (usuario.entradas.length > 100) {
     return interaction.reply({ embeds: [embed] });
   }
 
-  // ========================================
+  // ======================================== 
   // COMANDO /estadisticas
-  // ========================================
+  // ======================================== 
   if (interaction.commandName === "estadisticas") {
     const embed = new EmbedBuilder()
       .setColor(colorDep)
@@ -516,12 +480,11 @@ if (usuario.entradas.length > 100) {
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
-  // ========================================
+  // ======================================== 
   // COMANDO /ranking
-  // ========================================
+  // ======================================== 
   if (interaction.commandName === "ranking") {
     const periodo = interaction.options.getString("periodo");
-    
     const periodoNombres = {
       daily: "📅 HOY",
       weekly: "📅 ESTA SEMANA",
@@ -547,7 +510,6 @@ if (usuario.entradas.length > 100) {
       .setTimestamp();
 
     const medallas = ["🥇", "🥈", "🥉"];
-    
     top.forEach(([key, usuario], i) => {
       const emoji = i < 3 ? medallas[i] : `**${i + 1}.**`;
       embed.addFields({
@@ -561,9 +523,9 @@ if (usuario.entradas.length > 100) {
   }
 });
 
-// ========================================
+// ======================================== 
 // MANEJO DE ERRORES
-// ========================================
+// ======================================== 
 process.on('SIGINT', () => {
   console.log('⏸️ Guardando datos antes de cerrar...');
   if (guardarPendiente) {
@@ -581,9 +543,9 @@ process.on("unhandledRejection", error => {
   console.error("❌ Promesa rechazada:", error);
 });
 
-// ========================================
+// ======================================== 
 // INICIAR BOT
-// ========================================
+// ======================================== 
 client.login(TOKEN).catch(error => {
   console.error("❌ Error al iniciar sesión:", error);
   process.exit(1);
