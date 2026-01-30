@@ -1,7 +1,8 @@
 require('dotenv').config();
 
-const {
-  Client,
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
   GatewayIntentBits,
   SlashCommandBuilder,
   REST,
