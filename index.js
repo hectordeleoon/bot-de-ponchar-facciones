@@ -60,6 +60,31 @@ const NEGOCIOS = {
     roleIds: process.env.TALLER3_ROLE_IDS?.split(',') || [],
     nombre: "LOS SANTOS CUSTOMS",
     emoji: "🔧"
+  },
+  // ✅ NUEVO NEGOCIO - VANILLA CLUB
+  vanillaclub: {
+    channelId: "1474121219094610002",
+    logChannelId: "1474121729684148376",
+    roleIds: [
+      "1474135795966279751",
+      "1474135849430941902",
+      "1474135921686216796",
+      "1474135952438984807"
+    ],
+    nombre: "VANILLA CLUB",
+    emoji: "🍸"
+  },
+  // ✅ NUEVO NEGOCIO - ABOGADO PENAL
+  abogadopenal: {
+    channelId: "1474952478046027906",
+    logChannelId: "1474952405362806784",
+    roleIds: [
+      "1474948688064282665",
+      "1474948947079598303",
+      "1474949027593191547"
+    ],
+    nombre: "ABOGADO PENAL",
+    emoji: "⚖️"
   }
 };
 
@@ -172,7 +197,6 @@ app.get('/dashboard', (req, res) => {
 app.post('/register-player', (req, res) => {
   const { secret, discordId, identifiers, playerName, playerId } = req.body;
 
-  // Verificar secreto
   if (secret !== WEBHOOK_SECRET) {
     return res.status(403).json({ error: 'Secreto inválido' });
   }
@@ -181,7 +205,6 @@ app.post('/register-player', (req, res) => {
     return res.status(400).json({ error: 'Faltan datos' });
   }
 
-  // Guardar información del jugador
   jugadoresData[discordId] = {
     playerId: playerId || 'N/A',
     playerName: playerName || 'Desconocido',
@@ -194,7 +217,6 @@ app.post('/register-player', (req, res) => {
   res.json({ success: true, message: 'Jugador registrado correctamente' });
 });
 
-// Iniciar servidor web y webhook
 app.listen(WEBHOOK_PORT, () => {
   console.log(`🌐 Servidor web y webhook escuchando en puerto ${WEBHOOK_PORT}`);
 });
@@ -389,38 +411,31 @@ client.on("interactionCreate", async interaction => {
     const tiempoMinutos = Math.floor(tiempo / 60000);
     const tiempoFormateado = formatearTiempo(tiempo);
 
-    // Actualizar estadísticas
     usuario.total += tiempo;
     usuario.daily += tiempo;
     usuario.weekly += tiempo;
     usuario.monthly += tiempo;
 
-    // Guardar en historial
     usuario.entradas.push({
       entrada: horaEntrada,
       salida: horaSalida,
       duracion: tiempo
     });
 
-    // 🧹 Limitar historial para optimizar rendimiento
     if (usuario.entradas.length > 100) {
-      usuario.entradas.shift(); // borra la más vieja
+      usuario.entradas.shift();
     }
 
     delete usuario.entrada;
     save();
 
-    // Obtener información del jugador de FiveM
     const jugadorInfo = jugadoresData[id] || null;
 
-    // Enviar al canal de logs
     try {
       const logChannel = await client.channels.fetch(departamento.logChannelId);
 
-      // Mensaje simple primero
       await logChannel.send(`🧾 **[${nombreDep}]** ${interaction.user.username} trabajó **${tiempoFormateado}**`);
 
-      // Embed detallado con identificadores
       const logEmbed = new EmbedBuilder()
         .setColor(0xff6b6b)
         .setTitle(`📋 Salida del servicio`)
@@ -431,7 +446,6 @@ client.on("interactionCreate", async interaction => {
           { name: "⏱️ Total", value: `\`${tiempoMinutos}\` minutos`, inline: true }
         );
 
-      // Agregar identificadores si están disponibles
       if (jugadorInfo && jugadorInfo.identifiers) {
         const ids = jugadorInfo.identifiers;
         let identificadoresTexto = `**ID:** ${jugadorInfo.playerId || 'N/A'}\n`;
@@ -449,7 +463,6 @@ client.on("interactionCreate", async interaction => {
       console.error("❌ Error enviando log:", error);
     }
 
-    // Responder al usuario
     const embed = new EmbedBuilder()
       .setColor(0xff0000)
       .setTitle(`🔴 SALIDA REGISTRADA - ${nombreDep}`)
