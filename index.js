@@ -10,7 +10,6 @@ const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 
-// Configuración del servidor webhook para FiveM
 const WEBHOOK_PORT = process.env.WEBHOOK_PORT || 3000;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "cambia_este_secreto";
 
@@ -27,62 +26,51 @@ const EMS_ROLE_ID = process.env.EMS_ROLE_ID;
 // CONFIGURACIÓN NEGOCIOS
 const NEGOCIOS = {
   burger: {
-    channelId: "1460848871096844351",
+    channelId: process.env.BURGER_CHANNEL_ID,
     logChannelId: process.env.BURGER_LOG_CHANNEL_ID,
     roleIds: process.env.BURGER_ROLE_IDS?.split(',') || [],
     nombre: "BURGER SHOT",
     emoji: "🍔"
   },
   catcafe: {
-    channelId: "1460848936095842304",
+    channelId: process.env.CATCAFE_CHANNEL_ID,
     logChannelId: process.env.CATCAFE_LOG_CHANNEL_ID,
     roleIds: process.env.CATCAFE_ROLE_IDS?.split(',') || [],
     nombre: "CAT CAFE",
     emoji: "🐱"
   },
   taller1: {
-    channelId: "1460849062155911331",
+    channelId: process.env.TALLER1_CHANNEL_ID,
     logChannelId: process.env.TALLER1_LOG_CHANNEL_ID,
     roleIds: process.env.TALLER1_ROLE_IDS?.split(',') || [],
     nombre: "CRUISIN MECHANIC",
     emoji: "🔧"
   },
   taller2: {
-    channelId: "1460849005733875785",
+    channelId: process.env.TALLER2_CHANNEL_ID,
     logChannelId: process.env.TALLER2_LOG_CHANNEL_ID,
     roleIds: process.env.TALLER2_ROLE_IDS?.split(',') || [],
     nombre: "SRT MOTOR",
     emoji: "🔧"
   },
   taller3: {
-    channelId: "1460849121786069084",
+    channelId: process.env.TALLER3_CHANNEL_ID,
     logChannelId: process.env.TALLER3_LOG_CHANNEL_ID,
     roleIds: process.env.TALLER3_ROLE_IDS?.split(',') || [],
     nombre: "LOS SANTOS CUSTOMS",
     emoji: "🔧"
   },
-  // ✅ NUEVO NEGOCIO - VANILLA CLUB
   vanillaclub: {
-    channelId: "1474121219094610002",
-    logChannelId: "1474121729684148376",
-    roleIds: [
-      "1474135795966279751",
-      "1474135849430941902",
-      "1474135921686216796",
-      "1474135952438984807"
-    ],
+    channelId: process.env.VANILLACLUB_CHANNEL_ID,
+    logChannelId: process.env.VANILLACLUB_LOG_CHANNEL_ID,
+    roleIds: process.env.VANILLACLUB_ROLE_IDS?.split(',') || [],
     nombre: "VANILLA CLUB",
     emoji: "🍸"
   },
-  // ✅ NUEVO NEGOCIO - ABOGADO PENAL
   abogadopenal: {
-    channelId: "1474952478046027906",
-    logChannelId: "1474952405362806784",
-    roleIds: [
-      "1474948688064282665",
-      "1474948947079598303",
-      "1474949027593191547"
-    ],
+    channelId: process.env.ABOGADOPENAL_CHANNEL_ID,
+    logChannelId: process.env.ABOGADOPENAL_LOG_CHANNEL_ID,
+    roleIds: process.env.ABOGADOPENAL_ROLE_IDS?.split(',') || [],
     nombre: "ABOGADO PENAL",
     emoji: "⚖️"
   }
@@ -99,7 +87,7 @@ const client = new Client({
 });
 
 let data = {};
-let jugadoresData = {}; // Almacena los identificadores de FiveM
+let jugadoresData = {};
 const DATA_FILE = "data.json";
 const JUGADORES_FILE = "jugadores.json";
 let guardarPendiente = false;
@@ -193,7 +181,6 @@ app.get('/dashboard', (req, res) => {
   `);
 });
 
-// Endpoint para registrar jugadores desde FiveM
 app.post('/register-player', (req, res) => {
   const { secret, discordId, identifiers, playerName, playerId } = req.body;
 
@@ -272,7 +259,6 @@ function detectarDepartamento(interaction) {
   const channelId = interaction.channelId;
   const memberRoles = interaction.member.roles.cache;
 
-  // Verificar Policía
   if (channelId === POLICIA_CHANNEL_ID && memberRoles.has(POLICIA_ROLE_ID)) {
     return {
       tipo: "policia",
@@ -282,7 +268,6 @@ function detectarDepartamento(interaction) {
     };
   }
 
-  // Verificar EMS
   if (channelId === EMS_CHANNEL_ID && memberRoles.has(EMS_ROLE_ID)) {
     return {
       tipo: "ems",
@@ -292,7 +277,6 @@ function detectarDepartamento(interaction) {
     };
   }
 
-  // Verificar Negocios
   for (const [key, negocio] of Object.entries(NEGOCIOS)) {
     if (channelId === negocio.channelId) {
       const tieneRol = negocio.roleIds.some(roleId => memberRoles.has(roleId));
@@ -523,14 +507,14 @@ client.on("interactionCreate", async interaction => {
       .setTimestamp();
 
     const medallas = ["🥇", "🥈", "🥉"];
-    top.forEach(([key, usuario], i) => {
+    top.forEach(([key, usuario], i => {
       const emoji = i < 3 ? medallas[i] : `**${i + 1}.**`;
       embed.addFields({
         name: `${emoji} ${i < 3 ? `${i + 1}° Lugar` : ''}`,
         value: `<@${usuario.userId}> — **${formatearTiempo(usuario[periodo])}**`,
         inline: false
       });
-    });
+    }));
 
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
